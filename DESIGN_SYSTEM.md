@@ -7,7 +7,7 @@ Sumber kebenaran untuk tampilan UI. Semua widget wajib memakai token dan kompone
 - **Konsisten**: satu token/komponen untuk satu kebutuhan. Jangan bikin varian baru kalau yang ada cukup.
 - **Token dulu**: warna, ukuran, dan gaya selalu lewat token, tidak pernah literal.
 - **Aksesibel**: kontras cukup, tap target cukup, mendukung text scaling.
-- **Adaptif**: nyaman di layar kecil sampai tablet, light dan dark mode.
+- **Mobile-first**: target utama phone (lihat `PRD.md` section 3); layout tetap tidak boleh rusak di layar lain.
 
 ## 2. Lokasi Kode
 
@@ -57,7 +57,7 @@ Aturan:
 
 ### 3.2 Tipografi
 
-Font: `<nama font>` (fallback: system).
+Font: `<nama font>` (fallback: system). Nama token mengikuti `TextTheme` Material 3.
 
 | Token | Ukuran / Line height | Weight | Dipakai untuk |
 |---|---|---|---|
@@ -67,7 +67,7 @@ Font: `<nama font>` (fallback: system).
 | `bodyLarge` | 16 / 24 | Regular | Teks utama |
 | `bodyMedium` | 14 / 20 | Regular | Teks sekunder |
 | `labelLarge` | 14 / 20 | Medium | Tombol, label |
-| `caption` | 12 / 16 | Regular | Catatan, metadata |
+| `bodySmall` | 12 / 16 | Regular | Catatan, metadata |
 
 Aturan:
 - Jangan set `fontSize`/`fontWeight` manual. Ambil dari token, lalu `copyWith` hanya untuk warna.
@@ -96,7 +96,9 @@ Jangan pakai angka literal di `EdgeInsets`/`SizedBox`. Pakai token spacing lewat
 
 ### 3.5 Responsive dan Adaptive Layout
 
-UI harus menyesuaikan ukuran layar, orientasi, dan keyboard. Layout ditentukan oleh **ruang yang tersedia**, bukan jenis perangkat.
+**Cakupan default: phone-first portrait.** Breakpoint `medium`/`expanded`, landscape, dan foldable hanya wajib kalau `PRD.md` section 3 mencentangnya. Yang selalu wajib di semua project: tidak overflow di layar kecil, aman dari keyboard, tahan text scale 1.3x.
+
+Layout ditentukan oleh **ruang yang tersedia**, bukan jenis perangkat.
 
 **Breakpoint**
 
@@ -104,18 +106,17 @@ UI harus menyesuaikan ukuran layar, orientasi, dan keyboard. Layout ditentukan o
 |---|---|---|
 | `compact` | < 600 | Phone portrait |
 | `medium` | 600 sampai 839 | Phone landscape, tablet kecil, foldable |
-| `expanded` | ≥ 840 | Tablet, desktop, web |
+| `expanded` | ≥ 840 | Tablet |
 
 Akses lewat helper di `core/design_system` (mis. `context.screenSize` atau `AppResponsiveBuilder`), bukan `MediaQuery` yang tersebar di widget.
 
 **Prinsip**
 - Pakai `LayoutBuilder` / constraints untuk keputusan layout. Jangan cek `Platform.isIOS` atau nama device untuk urusan ukuran.
 - Jangan hardcode `width`/`height` untuk layout utama. Pakai `Flexible`, `Expanded`, `Wrap`, `AspectRatio`, dan `ConstrainedBox(maxWidth: ...)`.
-- Konten teks dan form dibatasi lebar maksimum (sekitar 600 sampai 840) dan dipusatkan di layar lebar.
 - Gambar dan media memakai aspect ratio, bukan tinggi tetap.
-- Semua konten yang bisa panjang harus scrollable agar tidak overflow (keyboard muncul, landscape, text scale besar).
+- Semua konten yang bisa panjang harus scrollable agar tidak overflow (keyboard muncul, text scale besar).
 
-**Pola adaptif per breakpoint**
+**Pola adaptif per breakpoint** (hanya kalau PRD mencentang tablet/landscape)
 
 | Aspek | compact | medium | expanded |
 |---|---|---|---|
@@ -128,13 +129,9 @@ Akses lewat helper di `core/design_system` (mis. `context.screenSize` atau `AppR
 **Insets dan area aman**
 - Bungkus halaman dengan `SafeArea` (notch, status bar, gesture bar).
 - Perhatikan `viewInsets` (keyboard): input tidak boleh tertutup, gunakan scroll view.
-- Hormati display feature (lipatan foldable) bila target mendukung.
-
-**Orientasi**
-- Jangan kunci ke portrait kecuali ada keputusan di `PRD.md`. Landscape harus tetap usable.
 
 **Pengujian**
-- Widget test memverifikasi tampilan di beberapa ukuran: 360x640 (kecil), 411x891 (phone), 768x1024 (tablet), 1280x800 (lebar).
+- Widget test minimal di 360x640 (kecil) dan 411x891 (phone) — ukuran tablet/lebar hanya kalau PRD mencentangnya.
 - Uji juga dengan text scale 1.3x dan dark mode.
 
 ## 4. Theming
@@ -171,13 +168,14 @@ Aturan membuat komponen:
 - Ikon: `<set ikon, mis. Material Symbols / custom icon font>`. Ukuran standar 16, 20, 24.
 - Aset di `assets/` dan diakses lewat class generated (`flutter_gen_runner`), bukan string path manual.
 - Prefer SVG untuk ilustrasi dan ikon custom.
+- Ikon app & splash per flavor di-generate dengan `flutter_launcher_icons` dan `flutter_native_splash` (config per flavor) — lihat `ARCHITECTURE.md` section 6.1.
 
 ## 7. Aksesibilitas
 
 - Tap target minimal **48x48 dp**.
 - Semua gambar/ikon bermakna punya `Semantics` / `semanticLabel`.
 - Jangan mengandalkan warna saja untuk menyampaikan status (tambahkan ikon atau teks).
-- Urutan fokus dan navigasi keyboard/screen reader masuk akal.
+- Urutan fokus dan navigasi screen reader masuk akal.
 - Teks tidak dipotong saat text scale membesar.
 
 ## 8. Aturan untuk Agent
@@ -186,15 +184,15 @@ Aturan membuat komponen:
 - Pakai komponen `App*` yang sudah ada. Jangan pakai widget Material mentah kalau padanannya ada.
 - Dilarang: warna literal, `TextStyle` manual, angka spacing/radius literal, string hardcode.
 - Butuh token atau komponen baru? **Tanya dulu**, jelaskan alasannya, lalu tambahkan di design system, bukan di kode fitur.
-- Setelah selesai, cek tampilan di light dan dark mode, serta di lebar compact dan expanded.
+- Setelah selesai, cek tampilan di light dan dark mode, di layar kecil (360x640), dan text scale 1.3x.
 
 ## 9. Checklist UI Sebelum Selesai
 
 - [ ] Hanya memakai token dan komponen design system
 - [ ] Light dan dark mode sudah dicek
-- [ ] Tidak overflow di layar kecil dan text scale 1.3x
-- [ ] Layout adaptif di compact, medium, dan expanded, serta portrait dan landscape
+- [ ] Tidak overflow di layar kecil (360x640) dan text scale 1.3x
 - [ ] Tidak ada width/height hardcoded untuk layout utama; keyboard tidak menutup input
+- [ ] (Kalau PRD mencentang) layout adaptif di medium/expanded dan landscape
 - [ ] Tap target dan semantics sesuai
 - [ ] State loading, empty, dan error tersedia
 - [ ] Widget test ditambahkan untuk komponen baru

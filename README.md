@@ -12,22 +12,25 @@ This repository is documented for both humans and AI coding agents.
 | Document | Purpose |
 |---|---|
 | `AGENTS.md` | **Start here if you are an AI agent.** Working rules, commands, git conventions, and definition of done |
-| `PRD.md` | Product requirements: features, priorities, user flows |
-| `ARCHITECTURE.md` | Clean architecture structure, layers, DI, routing, flavors |
+| `PRD.md` | Product requirements: features (`F-xx`), screens (`S-xx`), acceptance criteria, scope |
+| `ARCHITECTURE.md` | Clean architecture structure, layers, DI, routing, flavors, error handling |
 | `DESIGN_SYSTEM.md` | Design tokens, theming, and shared `App*` components |
-| `CODE_STYLE.md` | Naming, formatting, and coding conventions |
+| `CODE_STYLE.md` | Naming, lint, and coding conventions |
 | `TESTING.md` | Testing strategy and how to run tests |
-| `SECURITY.md` | Secrets, auth tokens, network, and release security rules |
+| `SECURITY.md` | Secrets, auth tokens, network, permissions, and release security rules |
 
 ## Tech Stack
 
 - **Flutter** `3.47.9` (Dart `3.13.7`) — managed via [FVM](https://fvm.app), pinned in `.fvmrc`
-- **State management**: `flutter_bloc` (Bloc only, no Cubit)
+- **State management**: `flutter_bloc` (Bloc only, no Cubit) + `bloc_concurrency`
 - **Routing**: `go_router`
 - **Dependency injection**: `get_it` + `injectable`
 - **Networking**: `dio`
+- **Error handling**: sealed `Failure` + custom `Result<T>` (no FP package)
 - **Local storage**: `drift` (SQLite), `shared_preferences`, `flutter_secure_storage`
-- **Logging**: `AppLogger` abstraction (console / Firebase Crashlytics / remote API)
+- **Config**: `.env.<flavor>` via `--dart-define-from-file`, read only by `AppConfig`
+- **Localization**: `gen-l10n` — `id` (default) + `en`
+- **Logging**: `AppLogger` abstraction (console / Crashlytics / remote API)
 - **Flavors**: `staging`, `prod`
 
 ## Prerequisites
@@ -55,11 +58,12 @@ cp .env.example .env.staging   # fill in staging values
 cp .env.example .env.prod      # fill in production values
 # NOTE: .env files are gitignored and must never be committed. See SECURITY.md.
 
-# 5. Run code generation (injectable, drift)
+# 5. Run code generation (l10n + injectable + drift + assets)
+fvm flutter gen-l10n
 fvm dart run build_runner build --delete-conflicting-outputs
 
 # 6. Run the app (staging flavor)
-fvm flutter run --flavor staging -t lib/main_staging.dart
+fvm flutter run --flavor staging -t lib/main_staging.dart --dart-define-from-file=.env.staging
 ```
 
 ## Common Commands
@@ -69,23 +73,31 @@ All commands are wrapped in a **Makefile** for convenience on macOS/Linux (`make
 | Task | Make | Raw command |
 |---|---|---|
 | Install deps | `make get` | `fvm flutter pub get` |
-| Codegen | `make gen` | `fvm dart run build_runner build --delete-conflicting-outputs` |
+| Codegen | `make gen` | `fvm flutter gen-l10n && fvm dart run build_runner build --delete-conflicting-outputs` |
 | Format | `make format` | `fvm dart format .` |
 | Analyze | `make analyze` | `fvm flutter analyze` |
+| Pre-finish gate | `make check` | `make format && make analyze && make test` |
 | All tests | `make test` | `fvm flutter test` |
 | Tests per feature | `make test-feature f=<feature>` | `fvm flutter test test/features/<feature>/` |
+| Single test file | `make test-file f=<path>` | `fvm flutter test <path>` |
 | Coverage | `make test-coverage` | `fvm flutter test --coverage` |
-| Integration test | `make test-integration` | `fvm flutter test integration_test/ --flavor staging -t lib/main_staging.dart` |
-| Run staging | `make run-staging` | `fvm flutter run --flavor staging -t lib/main_staging.dart` |
-| Run production | `make run-prod` | `fvm flutter run --flavor prod -t lib/main_prod.dart` |
+| Integration test | `make test-integration` | `fvm flutter test integration_test/ --flavor staging --dart-define-from-file=.env.staging -d <device_id>` |
+| Run staging | `make run-staging` | `fvm flutter run --flavor staging -t lib/main_staging.dart --dart-define-from-file=.env.staging` |
+| Run production | `make run-prod` | `fvm flutter run --flavor prod -t lib/main_prod.dart --dart-define-from-file=.env.prod` |
+| Build release | `make build-prod` | `fvm flutter build appbundle --release --flavor prod --dart-define-from-file=.env.prod --obfuscate --split-debug-info=build/symbols` |
+| Clean | `make clean` | `fvm flutter clean` |
+
+Note: `flutter test` has no `-t` flag — the integration test target is selected via the file path.
 
 ## Project Structure
 
 ```
 lib/
-├── core/          # config, design_system, di, error, l10n, logger, network, router, utils
+├── core/          # config, design_system, di, error, l10n, logger, network, router, usecase, utils
 ├── shared/        # widgets & models shared across features
 ├── features/      # one folder per feature, each with data / domain / presentation
+├── app.dart       # root widget (MaterialApp.router)
+├── bootstrap.dart # shared init: error handlers, config, DI, logger
 ├── main_staging.dart
 └── main_prod.dart
 test/              # mirrors lib/
@@ -98,7 +110,7 @@ Full structure and rules: `ARCHITECTURE.md`.
 
 1. Branch from `development` using `<type>/<short-description>` (e.g. `feature/login-email`).
 2. Follow the rules in `AGENTS.md` and `CODE_STYLE.md`.
-3. Make sure `make analyze` and `make test` are green.
+3. Make sure `make check` is green.
 4. Commit using [Conventional Commits](https://www.conventionalcommits.org/) in English (e.g. `feat(auth): add email login`).
 5. Open a pull request to `development`.
 
